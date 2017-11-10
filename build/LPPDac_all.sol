@@ -1664,34 +1664,55 @@ contract LPPDac is Owned, TokenController {
         uint amount
     ) external {
         require(msg.sender == address(liquidPledging));
-        var (, toOwner, , intendedProject, , , toPaymentState ) = liquidPledging.getPledge(pledgeTo);
+        var (, toOwner, , toIntendedProject, , , toPaymentState ) = liquidPledging.getPledge(pledgeTo);
         var (, fromOwner, , , , , ) = liquidPledging.getPledge(pledgeFrom);
-        var (adminType, , , , , , , ) = liquidPledging.getPledgeAdmin(toOwner);
+        var (toAdminType, , , , , , , ) = liquidPledging.getPledgeAdmin(toOwner);
 
         // only issue tokens when pledge is committed to a project and this contract is the first delegate
         if ( (context == FROM_FIRST_DELEGATE) &&
-                ( intendedProject == 0 ) &&
-                ( adminType == LiquidPledgingBase.PledgeAdminType.Project ) &&
+                ( toIntendedProject == 0 ) &&
+                ( toAdminType == LiquidPledgingBase.PledgeAdminType.Project ) &&
                 ( toOwner != fromOwner ) &&
                 ( toPaymentState == LiquidPledgingBase.PaymentState.Pledged )) {
+
             var (, addr , , , , , , ) = liquidPledging.getPledgeAdmin(fromOwner);
             token.generateTokens(addr, amount);
+            
         }
     }
 
-    function cancelDAC() public onlyOwner {
-        require( !isCanceled() );
-
-        liquidPledging.cancelProject(idProject);
-    }
-
     function transfer(uint64 idSender, uint64 idPledge, uint amount, uint64 idReceiver) public onlyOwner {
-      require( !isCanceled() );
-
-      liquidPledging.transfer(idSender, idPledge, amount, idReceiver);
+        liquidPledging.transfer(idSender, idPledge, amount, idReceiver);
     }
 
-    function isCanceled() public view returns (bool) {
-      return liquidPledging.isProjectCanceled(idProject);
+////////////////
+// TokenController
+////////////////
+
+    /// @notice Called when `_owner` sends ether to the MiniMe Token contract
+    /// @param _owner The address that sent the ether to create tokens
+    /// @return True if the ether is accepted, false if it throws
+    function proxyPayment(address _owner) public payable returns(bool) {
+        return false;
+    }
+
+    /// @notice Notifies the controller about a token transfer allowing the
+    ///  controller to react if desired
+    /// @param _from The origin of the transfer
+    /// @param _to The destination of the transfer
+    /// @param _amount The amount of the transfer
+    /// @return False if the controller does not authorize the transfer
+    function onTransfer(address _from, address _to, uint _amount) public returns(bool) {
+        return false;
+    }
+
+    /// @notice Notifies the controller about an approval allowing the
+    ///  controller to react if desired
+    /// @param _owner The address that calls `approve()`
+    /// @param _spender The spender in the `approve()` call
+    /// @param _amount The amount in the `approve()` call
+    /// @return False if the controller does not authorize the approval
+    function onApprove(address _owner, address _spender, uint _amount) public returns(bool) {
+        return false;
     }
 }

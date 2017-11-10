@@ -2,7 +2,7 @@
 /* eslint-disable no-await-in-loop */
 const TestRPC = require('ethereumjs-testrpc');
 const chai = require('chai');
-const { Vault, LiquidPledging, LiquidPledgingState } = require('liquidpledging');
+const { Vault, LiquidPledgingMock, LiquidPledgingState } = require('liquidpledging');
 const LPPDac = require('../lib/LPPDac');
 const MiniMeToken = require('minimetoken/js/minimetoken');
 const MiniMeTokenState = require('minimetoken/js/minimetokenstate');
@@ -20,12 +20,15 @@ describe('LPPDac test', function() {
   let liquidPledgingState;
   let vault;
   let dac;
+  let dac2;
   let minime;
+  let minime2;
   let minimeTokenState;
   let giver1;
   let giver2;
   let project1;
   let dacOwner1;
+  let dacOwner2;
   let testrpc;
 
   before(async () => {
@@ -43,6 +46,7 @@ describe('LPPDac test', function() {
     giver1 = accounts[1];
     project1 = accounts[2];
     dacOwner1 = accounts[3];
+    dacOwner2 = accounts[4];
     giver2 = accounts[6];
   });
 
@@ -53,7 +57,7 @@ describe('LPPDac test', function() {
 
   it('Should deploy LPPDac contract and add delegate to liquidPledging', async () => {
     vault = await Vault.new(web3);
-    liquidPledging = await LiquidPledging.new(web3, vault.$address);
+    liquidPledging = await LiquidPledgingMock.new(web3, vault.$address);
     await vault.setLiquidPledging(liquidPledging.$address);
 
     liquidPledgingState = new LiquidPledgingState(liquidPledging);
@@ -66,7 +70,7 @@ describe('LPPDac test', function() {
     const lpState = await liquidPledgingState.getState();
     assert.equal(lpState.admins.length, 2);
     const lpManager = lpState.admins[1];
-    assert.equal(lpManager.type, 'Project');
+    assert.equal(lpManager.type, 'Delegate');
     assert.equal(lpManager.addr, dac.$address);
     assert.equal(lpManager.name, 'DAC 1');
     assert.equal(lpManager.commitTime, '0');
@@ -74,8 +78,7 @@ describe('LPPDac test', function() {
     assert.equal(lpManager.plugin, dac.$address);
 
     assert.equal(await dac.liquidPledging(), liquidPledging.$address);
-    assert.equal(dac.idProject(), '1');
-    assert.equal(dac.token(), minime.$address);
+    assert.equal(await dac.idProject(), '1');
 
     const tState = await minimeTokenState.getState();
     assert.equal(tState.totalSupply, 0);
@@ -89,66 +92,85 @@ describe('LPPDac test', function() {
     await liquidPledging.donate(2, 1, { from: giver1, value: 1000 });
 
     const st = await liquidPledgingState.getState();
-    assert(st.pledges[2].amount, 1000);
-    assert(st.pledges[2].owner, 1);
+    assert.equal(st.pledges[2].amount, 1000);
+    assert.equal(st.pledges[2].owner, 2);
 
     const giverTokenBal = await minime.balanceOf(giver1);
     const totalTokenSupply = await minime.totalSupply();
-    assert(giverTokenBal, 0);
-    assert(totalTokenSupply, 0);
+    assert.equal(giverTokenBal, 0);
+    assert.equal(totalTokenSupply, 0);
   });
 
-  // it('Should be able to transfer pledge to another project', async function() {
-  //   await liquidPledging.addProject('Project1', 'URL', project1, 0, 0, 0x0, { from: project1, gas: 1000000 }); // pledgeAdmin #3
-  //   await campaign.transfer(1, 2, 1000, 3, { from: campaignOwner1, gas: 300000 });
-  //
-  //   const st = await liquidPledgingState.getState();
-  //   assert(st.pledges[3].amount, 1000);
-  //   assert(st.pledges[3].owner, 3);
-  //   assert(st.pledges[2].amount, 0);
-  // });
-  //
-  // it('Should be able to change reviewer', async function() {
-  //   await campaign.changeReviewer(reviewer2, { from: reviewer1 });
-  //
-  //   const st = await campaign.getState();
-  //   assert.equal(st.reviewer, reviewer1);
-  //   assert.equal(st.newReviewer, reviewer2);
-  //
-  //   await campaign.acceptNewReviewer({ from: reviewer2, gas: 40000 });
-  //
-  //   const st2 = await campaign.getState();
-  //   assert.equal(st2.reviewer, reviewer2);
-  //   assert.equal(st2.newReviewer, '0x0000000000000000000000000000000000000000');
-  // });
-  //
-  // it('Owner should not be able to change reviewer', async function() {
-  //   await assertFail(async () => await campaign.changeReviewer(reviewer1, { from: campaignOwner1 }));
-  // });
-  //
-  // it('Reviewer should be able to cancel campaign', async function() {
-  //   await campaign.cancelCampaign({ from: reviewer2 });
-  //
-  //   const canceled = await campaign.isCanceled();
-  //   assert.equal(canceled, true);
-  // });
-  //
-  // it('Should deploy another campaign', async function() {
-  //   campaign = await LPPCampaign.new(web3, liquidPledging.$address, 'Campaign 2', 'URL2', 0, reviewer1, 'Campaign 2 Token', 'CPG2', { from: campaignOwner1 }); // pledgeAdmin #4
-  //
-  //   const canceled = await campaign.isCanceled();
-  //   assert.equal(canceled, false);
-  // });
-  //
-  // it('Random should not be able to cancel campaign', async function() {
-  //   await assertFail(async () => await campaign.cancelCampaign({ from: accounts[9] }));
-  // });
-  //
-  // it('Owner should be able to cancel campaign', async function() {
-  //   await campaign.cancelCampaign({ from: campaignOwner1 });
-  //
-  //   const canceled = await campaign.isCanceled();
-  //   assert.equal(canceled, true);
-  //   console.log(JSON.stringify(await liquidPledgingState.getState(), null, 2));
-  // });
+  it('Should send tokens to giver when committing to project', async function() {
+    // create project
+    await liquidPledging.addProject('Project1', 'URL', project1, 0, 0, 0x0, { from: project1, gas: 1000000 }); // pledgeAdmin #3
+    // delegate to project1
+    await dac.transfer(1, 2, 1000, 3, { from: dacOwner1 });
+
+    // set the time
+    const now = Math.floor(new Date().getTime() / 1000);
+    await liquidPledging.setMockedTime(now);
+
+    await liquidPledging.normalizePledge(3, { gas: 500000 });
+
+    const st = await liquidPledgingState.getState();
+    assert.equal(st.pledges[4].amount, 1000);
+    assert.equal(st.pledges[4].owner, 3);
+    assert.equal(st.pledges[3].amount, 0);
+    assert.equal(st.pledges[2].amount, 0);
+
+    const giverTokenBal = await minime.balanceOf(giver1);
+    const totalTokenSupply = await minime.totalSupply();
+    assert.equal(giverTokenBal, 1000);
+    assert.equal(totalTokenSupply, 1000);
+  });
+
+  it('Should not send tokens to giver when revoking pledge from delegate', async function() {
+    // donate to delegate1
+    await liquidPledging.donate(2, 1, { from: giver1, value: 1000 });
+    await liquidPledging.transfer(2, 2, 1000, 2, { from: giver1, $extraGas: 200000 });
+
+    const st = await liquidPledgingState.getState();
+    assert.equal(st.pledges[1].amount, 1000);
+    assert.equal(st.pledges[1].owner, 2);
+
+    const giverTokenBal = await minime.balanceOf(giver1);
+    const totalTokenSupply = await minime.totalSupply();
+    assert.equal(giverTokenBal, 1000);
+    assert.equal(totalTokenSupply, 1000);
+  });
+
+  it('Should only generate tokens for first delegate in chain.', async function() {
+    dac2 = await LPPDac.new(web3, liquidPledging.$address, 'DAC 2', 'URL2', 0, 'DAC 2 Token', 'DAC2', { from: dacOwner2});
+    minime2 = new MiniMeToken(web3, await dac2.token());
+
+    // add delegate 1
+    await liquidPledging.transfer(2, 1, 1000, 1, { from: giver1, $extraGas: 200000 });
+    // add delegate 2
+    await dac.transfer(1, 2, 1000, 4, { from: dacOwner1 });
+
+    // delegate to project1
+    await dac2.transfer(4, 5, 1000, 3, { from: dacOwner2 });
+
+    // set the time
+    const now = Math.floor(new Date().getTime() / 1000);
+    await liquidPledging.setMockedTime(now);
+
+    await liquidPledging.normalizePledge(6, { gas: 500000 });
+
+    const st = await liquidPledgingState.getState();
+    assert.equal(st.pledges[4].amount, 1000);
+    assert.equal(st.pledges[4].owner, 3);
+
+    const giverTokenBal = await minime.balanceOf(giver1);
+    const totalTokenSupply = await minime.totalSupply();
+    assert.equal(giverTokenBal, 2000);
+    assert.equal(totalTokenSupply, 2000);
+
+    const giverToken2Bal = await minime2.balanceOf(giver1);
+    const totalToken2Supply = await minime2.totalSupply();
+    assert.equal(giverToken2Bal, 0);
+    assert.equal(totalToken2Supply, 0);
+  });
+
 });
