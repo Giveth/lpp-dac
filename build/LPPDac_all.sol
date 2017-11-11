@@ -1631,6 +1631,8 @@ contract LPPDac is Owned, TokenController {
     MiniMeToken public token;
     uint64 public idProject;
 
+    event GenerateTokens(address indexed liquidPledging, address addr, uint amount);
+
     function LPPDac(
         LiquidPledging _liquidPledging,
         string name,
@@ -1677,7 +1679,8 @@ contract LPPDac is Owned, TokenController {
 
             var (, addr , , , , , , ) = liquidPledging.getPledgeAdmin(fromOwner);
             token.generateTokens(addr, amount);
-            
+            GenerateTokens(liquidPledging, addr, amount);
+
         }
     }
 
