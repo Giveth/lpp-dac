@@ -27,6 +27,7 @@ describe('LPPDac test', function() {
   let giver1;
   let giver2;
   let project1;
+  let project2;
   let dacOwner1;
   let dacOwner2;
   let testrpc;
@@ -47,6 +48,7 @@ describe('LPPDac test', function() {
     project1 = accounts[2];
     dacOwner1 = accounts[3];
     dacOwner2 = accounts[4];
+    project2 = accounts[5];
     giver2 = accounts[6];
   });
 
@@ -171,6 +173,50 @@ describe('LPPDac test', function() {
     const totalToken2Supply = await minime2.totalSupply();
     assert.equal(giverToken2Bal, 0);
     assert.equal(totalToken2Supply, 0);
+
   });
 
+  it('Should burn tokens if project is canceled', async function() {
+    await liquidPledging.cancelProject(3, { from: project1 });
+    // set the time
+    const now = Math.floor(new Date().getTime() / 1000);
+    await liquidPledging.setMockedTime(now);
+
+    await liquidPledging.normalizePledge(4, { gas: 500000 });
+
+    const giverTokenBal = await minime.balanceOf(giver1);
+    const totalTokenSupply = await minime.totalSupply();
+    assert.equal(giverTokenBal, 1000);
+    assert.equal(totalTokenSupply, 1000);
+  });
+
+  it('Should not burn tokens for paid pledges if project is canceled', async function() {
+    // create project
+    await liquidPledging.addProject('Project2', 'URL', project2, 0, 0, 0x0, { from: project2, gas: 1000000 }); // pledgeAdmin #5
+    await liquidPledging.addGiver('Giver2', '', 0, 0x0, { from: giver2 }); // pledgeAdmin #6
+    // donate to delegate1
+    await liquidPledging.donate(6, 1, { from: giver2, value: 1000 });
+    // delegate to project2
+    await dac.transfer(1, 9, 1000, 5, { from: dacOwner1 });
+
+    // commit to project 2
+    await liquidPledging.transfer(6, 10, 1000, 5, { from: giver2 });
+
+    // withdraw
+    await liquidPledging.withdraw(11, 1000, { from: project2 });
+
+    // cancel project2
+    await liquidPledging.cancelProject(5, { from: project2 });
+
+    // set the time
+    const now = Math.floor(new Date().getTime() / 1000);
+    await liquidPledging.setMockedTime(now);
+
+    await liquidPledging.normalizePledge(12, { gas: 500000 });
+
+    const giverTokenBal = await minime.balanceOf(giver2);
+    const totalTokenSupply = await minime.totalSupply();
+    assert.equal(giverTokenBal, 1000);
+    assert.equal(totalTokenSupply, 2000);
+  })
 });

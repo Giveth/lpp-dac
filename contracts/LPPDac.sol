@@ -12,6 +12,8 @@ import "../node_modules/minimetoken/contracts/MiniMeToken.sol";
 ///  this contract is the first delegate in the delegateChain
 contract LPPDac is Owned, TokenController {
     uint constant FROM_FIRST_DELEGATE = 1;
+    uint constant TO_FIRST_DELEGATE = 257;
+
 
     LiquidPledging public liquidPledging;
     MiniMeToken public token;
@@ -54,7 +56,7 @@ contract LPPDac is Owned, TokenController {
         require(msg.sender == address(liquidPledging));
         var (, toOwner, , toIntendedProject, , , toPaymentState ) = liquidPledging.getPledge(pledgeTo);
         var (, fromOwner, , , , , ) = liquidPledging.getPledge(pledgeFrom);
-        var (toAdminType, , , , , , , ) = liquidPledging.getPledgeAdmin(toOwner);
+        var (toAdminType, toAddr, , , , , , ) = liquidPledging.getPledgeAdmin(toOwner);
 
         // only issue tokens when pledge is committed to a project and this contract is the first delegate
         if ( (context == FROM_FIRST_DELEGATE) &&
@@ -63,10 +65,16 @@ contract LPPDac is Owned, TokenController {
                 ( toOwner != fromOwner ) &&
                 ( toPaymentState == LiquidPledgingBase.PaymentState.Pledged )) {
 
-            var (, addr , , , , , , ) = liquidPledging.getPledgeAdmin(fromOwner);
-            token.generateTokens(addr, amount);
-            GenerateTokens(liquidPledging, addr, amount);
+            var (, fromAddr , , , , , , ) = liquidPledging.getPledgeAdmin(fromOwner);
+            token.generateTokens(fromAddr, amount);
+            GenerateTokens(liquidPledging, fromAddr, amount);
+        }
 
+        if ( (context == TO_FIRST_DELEGATE) &&
+            liquidPledging.isProjectCanceled(fromOwner)) {
+          if (token.balanceOf(toAddr) >= amount) {
+            token.destroyTokens(toAddr, amount);
+          }
         }
     }
 
