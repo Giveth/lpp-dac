@@ -1686,8 +1686,9 @@ contract LPPDac is Owned, TokenController {
 
         if ( (context == TO_FIRST_DELEGATE) &&
             liquidPledging.isProjectCanceled(fromOwner)) {
-          // not adding a token balance check here as I want it to throw during testing
-          token.destroyTokens(toAddr, amount);
+          if (token.balanceOf(toAddr) >= amount) {
+            token.destroyTokens(toAddr, amount);
+          }
         }
     }
 
