@@ -1,8 +1,8 @@
 pragma solidity ^0.4.13;
 
-import "../node_modules/liquidpledging/contracts/LiquidPledging.sol";
-import "../node_modules/giveth-common-contracts/contracts/Owned.sol";
-import "../node_modules/minimetoken/contracts/MiniMeToken.sol";
+import "liquidpledging/contracts/LiquidPledging.sol";
+import "giveth-common-contracts/contracts/Owned.sol";
+import "minimetoken/contracts/MiniMeToken.sol";
 
 /// @title LPPDac
 /// @author perissology <perissology@protonmail.com>
@@ -15,6 +15,7 @@ contract LPPDac is Owned, TokenController {
     uint constant TO_FIRST_DELEGATE = 257;
 
 
+    bool initPending;
     LiquidPledging public liquidPledging;
     MiniMeToken public token;
     uint64 public idProject;
@@ -22,17 +23,30 @@ contract LPPDac is Owned, TokenController {
     event GenerateTokens(address indexed liquidPledging, address addr, uint amount);
 
     function LPPDac(
-        LiquidPledging _liquidPledging,
-        string name,
-        string url,
-        uint64 commitTime,
         string tokenName,
         string tokenSymbol
     ) {
+      require(msg.sender != tx.origin);
+      MiniMeTokenFactory tokenFactory = new MiniMeTokenFactory();
+      token = new MiniMeToken(tokenFactory, 0x0, 0, tokenName, 18, tokenSymbol, false);
+      initPending = true;
+    }
+
+    modifier initialized() {
+        require(!initPending);
+        _;
+    }
+
+    function init(
+        LiquidPledging _liquidPledging,
+        string name,
+        string url,
+        uint64 commitTime
+    ) {
+        require(initPending);
         liquidPledging = _liquidPledging;
-        MiniMeTokenFactory tokenFactory = new MiniMeTokenFactory();
-        token = new MiniMeToken(tokenFactory, 0x0, 0, tokenName, 18, tokenSymbol, false);
         idProject = liquidPledging.addDelegate(name, url, commitTime, ILiquidPledgingPlugin(this));
+        initPending = false;
     }
 
     function beforeTransfer(
@@ -41,7 +55,7 @@ contract LPPDac is Owned, TokenController {
         uint64 pledgeTo,
         uint64 context,
         uint amount
-    ) external returns (uint maxAllowed) {
+    ) external initialized returns (uint maxAllowed) {
         require(msg.sender == address(liquidPledging));
         return amount;
     }
@@ -52,7 +66,7 @@ contract LPPDac is Owned, TokenController {
         uint64 pledgeTo,
         uint64 context,
         uint amount
-    ) external {
+    ) external initialized {
         require(msg.sender == address(liquidPledging));
         var (, toOwner, , toIntendedProject, , , toPaymentState ) = liquidPledging.getPledge(pledgeTo);
         var (, fromOwner, , , , , ) = liquidPledging.getPledge(pledgeFrom);
@@ -78,8 +92,8 @@ contract LPPDac is Owned, TokenController {
         }
     }
 
-    function transfer(uint64 idSender, uint64 idPledge, uint amount, uint64 idReceiver) public onlyOwner {
-        liquidPledging.transfer(idSender, idPledge, amount, idReceiver);
+    function transfer(uint64 idPledge, uint amount, uint64 idReceiver) public onlyOwner {
+        liquidPledging.transfer(idProject, idPledge, amount, idReceiver);
     }
 
 ////////////////
@@ -89,7 +103,7 @@ contract LPPDac is Owned, TokenController {
     /// @notice Called when `_owner` sends ether to the MiniMe Token contract
     /// @param _owner The address that sent the ether to create tokens
     /// @return True if the ether is accepted, false if it throws
-    function proxyPayment(address _owner) public payable returns(bool) {
+    function proxyPayment(address _owner) public payable initialized returns(bool) {
         return false;
     }
 

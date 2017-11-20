@@ -1658,7 +1658,7 @@ contract MiniMeTokenFactory {
     }
 }
 
-//File: ./contracts/LPPDac.sol
+//File: contracts/LPPDac.sol
 pragma solidity ^0.4.13;
 
 
@@ -1786,5 +1786,25 @@ contract LPPDac is Owned, TokenController {
     /// @return False if the controller does not authorize the approval
     function onApprove(address _owner, address _spender, uint _amount) public returns(bool) {
         return false;
+    }
+}
+
+//File: ./contracts/LPPDacFactory.sol
+pragma solidity ^0.4.13;
+
+
+
+contract LPPDacFactory {
+    function deploy(
+        LiquidPledging _liquidPledging,
+        string name,
+        string url,
+        uint64 commitTime,
+        string tokenName,
+        string tokenSymbol
+  ) {
+        LPPDac dac = new LPPDac(tokenName, tokenSymbol);
+        dac.init(_liquidPledging, name, url, commitTime);
+        dac.changeOwnership(msg.sender);
     }
 }
