@@ -89,7 +89,7 @@ describe('LPPDac test', function() {
     assert.equal(lpManager.canceled, false);
 
     assert.equal(await dac.liquidPledging(), liquidPledging.$address);
-    assert.equal(await dac.idProject(), '1');
+    assert.equal(await dac.idDelegate(), '1');
 
     const tState = await minimeTokenState.getState();
     assert.equal(tState.totalSupply, 0);

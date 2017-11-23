@@ -1679,15 +1679,17 @@ contract LPPDac is Owned, TokenController {
     bool initPending;
     LiquidPledging public liquidPledging;
     MiniMeToken public token;
-    uint64 public idProject;
+    uint64 public idDelegate;
 
     event GenerateTokens(address indexed liquidPledging, address addr, uint amount);
 
     function LPPDac(
+        LiquidPledging _liquidPledging,
         string tokenName,
         string tokenSymbol
     ) {
       require(msg.sender != tx.origin);
+      liquidPledging = _liquidPledging;
       MiniMeTokenFactory tokenFactory = new MiniMeTokenFactory();
       token = new MiniMeToken(tokenFactory, 0x0, 0, tokenName, 18, tokenSymbol, false);
       initPending = true;
@@ -1699,14 +1701,12 @@ contract LPPDac is Owned, TokenController {
     }
 
     function init(
-        LiquidPledging _liquidPledging,
         string name,
         string url,
         uint64 commitTime
     ) {
         require(initPending);
-        liquidPledging = _liquidPledging;
-        idProject = liquidPledging.addDelegate(name, url, commitTime, ILiquidPledgingPlugin(this));
+        idDelegate = liquidPledging.addDelegate(name, url, commitTime, ILiquidPledgingPlugin(this));
         initPending = false;
     }
 
@@ -1754,7 +1754,7 @@ contract LPPDac is Owned, TokenController {
     }
 
     function transfer(uint64 idPledge, uint amount, uint64 idReceiver) public onlyOwner {
-        liquidPledging.transfer(idProject, idPledge, amount, idReceiver);
+        liquidPledging.transfer(idDelegate, idPledge, amount, idReceiver);
     }
 
 ////////////////

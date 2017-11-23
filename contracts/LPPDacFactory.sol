@@ -10,9 +10,9 @@ contract LPPDacFactory {
         uint64 commitTime,
         string tokenName,
         string tokenSymbol
-  ) {
-        LPPDac dac = new LPPDac(tokenName, tokenSymbol);
-        dac.init(_liquidPledging, name, url, commitTime);
+  ) public {
+        LPPDac dac = new LPPDac(_liquidPledging, tokenName, tokenSymbol);
+        dac.init(name, url, commitTime);
         dac.changeOwnership(msg.sender);
     }
 }
