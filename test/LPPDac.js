@@ -2,7 +2,7 @@
 /* eslint-disable no-await-in-loop */
 const TestRPC = require('ethereumjs-testrpc');
 const chai = require('chai');
-const { Vault, LiquidPledgingMock, LiquidPledgingState } = require('liquidpledging');
+const { LPVault, LiquidPledgingMock, LiquidPledgingState } = require('liquidpledging');
 const LPPDac = require('../lib/LPPDac');
 const LPPDacFactory = require('../lib/LPPDacFactory');
 const LPPDacRuntimeByteCode = require('../build/LPPDacFactory.sol').LPPDacRuntimeByteCode;
@@ -61,8 +61,8 @@ describe('LPPDac test', function() {
   });
 
   it('Should deploy LPPDac contract and add delegate to liquidPledging', async () => {
-    vault = await Vault.new(web3);
-    liquidPledging = await LiquidPledgingMock.new(web3, vault.$address);
+    vault = await LPVault.new(web3, accounts[0], accounts[1]);
+    liquidPledging = await LiquidPledgingMock.new(web3, vault.$address, accounts[0], accounts[1]);
     await vault.setLiquidPledging(liquidPledging.$address);
 
     liquidPledgingState = new LiquidPledgingState(liquidPledging);
@@ -70,8 +70,8 @@ describe('LPPDac test', function() {
     const codeHash = web3.utils.keccak256(LPPDacRuntimeByteCode);
     await liquidPledging.addValidPlugin(codeHash);
 
-    factory = await LPPDacFactory.new(web3);
-    await factory.deploy(liquidPledging.$address, 'DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', { from: dacOwner1, gas: 6000000 }); // pledgeAdmin #1
+    factory = await LPPDacFactory.new(web3, accounts[0], accounts[1], {gas: 6500000});
+    await factory.deploy(liquidPledging.$address, 'DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', accounts[0], accounts[1], { from: dacOwner1, gas: 6000000 }); // pledgeAdmin #1
 
     const lpState = await liquidPledgingState.getState();
     assert.equal(lpState.admins.length, 2);
@@ -152,7 +152,7 @@ describe('LPPDac test', function() {
   });
 
   it('Should only generate tokens for first delegate in chain.', async function() {
-    await factory.deploy(liquidPledging.$address, 'DAC 2', 'URL2', 0, 'DAC 2 Token', 'DAC2', { from: dacOwner2});
+    await factory.deploy(liquidPledging.$address, 'DAC 2', 'URL2', 0, 'DAC 2 Token', 'DAC2', accounts[0], accounts[1], { from: dacOwner2 });
 
     const nPledgeAdmins = await liquidPledging.numberOfPledgeAdmins();
     const dac2Admin = await liquidPledging.getPledgeAdmin(nPledgeAdmins);

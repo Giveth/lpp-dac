@@ -1,7 +1,7 @@
 pragma solidity ^0.4.13;
 
 import "liquidpledging/contracts/LiquidPledging.sol";
-import "giveth-common-contracts/contracts/Owned.sol";
+import "giveth-common-contracts/contracts/Escapable.sol";
 import "minimetoken/contracts/MiniMeToken.sol";
 
 /// @title LPPDac
@@ -10,7 +10,7 @@ import "minimetoken/contracts/MiniMeToken.sol";
 ///  extending the functionality of a liquidPledging delegate. This contract
 ///  mints tokens for the giver when the pledge is committed to a project and
 ///  this contract is the first delegate in the delegateChain
-contract LPPDac is Owned, TokenController {
+contract LPPDac is Escapable, TokenController {
     uint constant FROM_FIRST_DELEGATE = 1;
     uint constant TO_FIRST_DELEGATE = 257;
 
@@ -25,8 +25,11 @@ contract LPPDac is Owned, TokenController {
     function LPPDac(
         LiquidPledging _liquidPledging,
         string tokenName,
-        string tokenSymbol
-    ) {
+        string tokenSymbol,
+        address _escapeHatchCaller,
+        address _escapeHatchDestination
+    ) Escapable(_escapeHatchCaller, _escapeHatchDestination) public
+    {
       require(msg.sender != tx.origin);
       liquidPledging = _liquidPledging;
       MiniMeTokenFactory tokenFactory = new MiniMeTokenFactory();
@@ -68,7 +71,7 @@ contract LPPDac is Owned, TokenController {
         uint amount
     ) external initialized {
         require(msg.sender == address(liquidPledging));
-        var (, toOwner, , toIntendedProject, , , toPaymentState ) = liquidPledging.getPledge(pledgeTo);
+        var (, toOwner, , toIntendedProject, , , toPledgeState ) = liquidPledging.getPledge(pledgeTo);
         var (, fromOwner, , , , , ) = liquidPledging.getPledge(pledgeFrom);
         var (toAdminType, toAddr, , , , , , ) = liquidPledging.getPledgeAdmin(toOwner);
 
@@ -77,7 +80,7 @@ contract LPPDac is Owned, TokenController {
                 ( toIntendedProject == 0 ) &&
                 ( toAdminType == LiquidPledgingBase.PledgeAdminType.Project ) &&
                 ( toOwner != fromOwner ) &&
-                ( toPaymentState == LiquidPledgingBase.PaymentState.Pledged )) {
+                ( toPledgeState == LiquidPledgingBase.PledgeState.Pledged )) {
 
             var (, fromAddr , , , , , , ) = liquidPledging.getPledgeAdmin(fromOwner);
             token.generateTokens(fromAddr, amount);
@@ -95,6 +98,7 @@ contract LPPDac is Owned, TokenController {
     function transfer(uint64 idPledge, uint amount, uint64 idReceiver) public onlyOwner {
         liquidPledging.transfer(idDelegate, idPledge, amount, idReceiver);
     }
+
 
 ////////////////
 // TokenController
