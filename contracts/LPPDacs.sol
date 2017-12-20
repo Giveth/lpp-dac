@@ -85,11 +85,11 @@ contract LPPDacs is Escapable, TokenController {
         uint64 idDelegate;
 
         // only issue tokens when pledge is committed to a project and a dac is the first delegate
-        if ( (context == FROM_FIRST_DELEGATE) &&
-                ( toIntendedProject == 0 ) &&
-                ( toAdminType == LiquidPledgingBase.PledgeAdminType.Project ) &&
-                ( toOwner != fromOwner ) &&
-                ( toPledgeState == LiquidPledgingBase.PledgeState.Pledged ))
+        if (context == FROM_FIRST_DELEGATE &&
+                toIntendedProject == 0 &&
+                toAdminType == LiquidPledgingBase.PledgeAdminType.Project &&
+                toOwner != fromOwner &&
+                toPledgeState == LiquidPledgingBase.PledgeState.Pledged)
         {
             (idDelegate, , ) = liquidPledging.getPledgeDelegate(pledgeFrom, 1);
             d = dacs[idDelegate];
@@ -142,10 +142,10 @@ contract LPPDacs is Escapable, TokenController {
     }
 
     function addDac(
-      string name,
-      string url,
-      uint64 commitTime,
-      MiniMeToken token
+        string name,
+        string url,
+        uint64 commitTime,
+        MiniMeToken token
     ) public
     {
         uint64 idDelegate = liquidPledging.addDelegate(
@@ -158,22 +158,33 @@ contract LPPDacs is Escapable, TokenController {
         dacs[idDelegate] = Dac(token, msg.sender);
     }
 
-    function transfer(uint64 idDelegate, uint64 idPledge, uint amount, uint64 idReceiver) public {
+    function transfer(
+        uint64 idDelegate,
+        uint64 idPledge,
+        uint amount,
+        uint64 idReceiver
+    ) public
+    {
         Dac storage d = dacs[idDelegate];
         require(msg.sender == d.owner);
 
-        liquidPledging.transfer(idDelegate, idPledge, amount, idReceiver);
+        liquidPledging.transfer(
+            idDelegate,
+            idPledge,
+            amount,
+            idReceiver
+        );
     }
 
     function getDac(uint64 idDelegate) public view returns (
         MiniMeToken token,
         address owner
-    ) {
+    )
+    {
         Dac storage d = dacs[idDelegate];
         token = d.token;
         owner = d.owner;
     }
-
 
     ////////////////
     // TokenController
@@ -183,7 +194,7 @@ contract LPPDacs is Escapable, TokenController {
     /// @param _owner The address that sent the ether to create tokens
     /// @return True if the ether is accepted, false if it throws
     function proxyPayment(address _owner) public payable returns(bool) {
-      return false;
+        return false;
     }
 
     /// @notice Notifies the controller about a token transfer allowing the
@@ -193,7 +204,7 @@ contract LPPDacs is Escapable, TokenController {
     /// @param _amount The amount of the transfer
     /// @return False if the controller does not authorize the transfer
     function onTransfer(address _from, address _to, uint _amount) public returns(bool) {
-      return false;
+        return false;
     }
 
     /// @notice Notifies the controller about an approval allowing the
@@ -202,7 +213,7 @@ contract LPPDacs is Escapable, TokenController {
     /// @param _spender The spender in the `approve()` call
     /// @param _amount The amount in the `approve()` call
     /// @return False if the controller does not authorize the approval
-  function onApprove(address _owner, address _spender, uint _amount) public returns(bool) {
-    return false;
-  }
+    function onApprove(address _owner, address _spender, uint _amount) public returns(bool) {
+        return false;
+    }
 }

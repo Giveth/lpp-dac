@@ -229,5 +229,6 @@ describe('LPPDac test', function() {
     const totalTokenSupply = await minime.totalSupply();
     assert.equal(giverTokenBal, 1000);
     assert.equal(totalTokenSupply, 2000);
-  })
+  });
+
 });
