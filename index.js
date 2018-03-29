@@ -1,2 +1,3 @@
-exports.LPPDacs = require('./lib/LPPDacs');
-exports.LPPDacsRuntimeByteCode = require('./build/LPPDacs.sol').LPPDacsRuntimeByteCode;
+const contracts = require('./build/contracts');
+exports.LPPDac = contracts.LPPDac;
+exports.LPPDacFactory = contracts.LPPDacFactory;
