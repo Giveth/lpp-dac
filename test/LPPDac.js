@@ -31,6 +31,7 @@ describe('LPPDac test', function () {
   let dacOwner1;
   let dacOwner2;
   let testrpc;
+  let acl;
 
   before(async () => {
     testrpc = TestRPC.server({
@@ -255,5 +256,41 @@ describe('LPPDac test', function () {
     assert.equal(giverTokenBal, 1000);
     assert.equal(totalTokenSupply, 2000);
   });
+
+  it('Should update delegate', async function () {
+    await dac.update('new name', 'new url', 1010, { from: dacOwner1, $extraGas: 100000 });
+
+    const d = await liquidPledging.getPledgeAdmin(1);
+    assert.equal(d.name, 'new name');
+    assert.equal(d.addr, dac.$address);
+    assert.equal(d.url, 'new url');
+    assert.equal(d.commitTime, 1010);
+  });
+
+  it('Should restrict admin to only specified params', async function () {
+    const params = [
+      // id: 1 (arg 1) op: LTE(6) value: amount
+      '0x0106000000000000000000000000000000000000000000000000000000000010'
+    ];
+
+    // grant restricted Admin_Role to dacOwner2
+    await acl.grantPermissionP(dacOwner2, dac.$address, await dac.ADMIN_ROLE(), params, { from: dacOwner1, $extraGas: 100000 });
+
+    // should only be able to transfer <= 10 tokens
+    assertFail(
+      dac.transfer(2, 100, 4, { from: dacOwner2, gas: 6700000 })
+    );
+
+    await dac.transfer(2, 10, 4, { from: dacOwner2, $extraGas: 100000 })
+
+    const st = await liquidPledgingState.getState();
+    assert.equal(990, st.pledges[2].amount);
+    assert.equal(10, st.pledges[5].amount);
+
+    // dacOwner2 should not be able to update dac
+    assertFail(
+      dac.update('I can update', 'pwned', 0, { from: dacOwner2, gas: 6700000 })
+    );
+  })
 
 });

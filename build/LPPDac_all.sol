@@ -3133,6 +3133,21 @@ contract LPPDac is EscapableApp, TokenController {
         );
     }
 
+    function update(
+        string newName,
+        string newUrl,
+        uint64 newCommitTime
+    ) public auth(ADMIN_ROLE)
+    {
+        liquidPledging.updateDelegate(
+            idDelegate,
+            address(this),
+            newName,
+            newUrl,
+            newCommitTime
+        );
+    }
+
     ////////////////
     // TokenController
     ////////////////
@@ -3310,6 +3325,21 @@ contract LPPDac is EscapableApp, TokenController {
             idPledge,
             amount,
             idReceiver
+        );
+    }
+
+    function update(
+        string newName,
+        string newUrl,
+        uint64 newCommitTime
+    ) public auth(ADMIN_ROLE)
+    {
+        liquidPledging.updateDelegate(
+            idDelegate,
+            address(this),
+            newName,
+            newUrl,
+            newCommitTime
         );
     }
 
