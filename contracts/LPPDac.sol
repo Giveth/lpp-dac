@@ -1,4 +1,4 @@
-pragma solidity ^0.4.17;
+pragma solidity ^0.4.18;
 
 /*
     Copyright 2017, RJ Ewing <perissology@protonmail.com>
@@ -18,35 +18,54 @@ pragma solidity ^0.4.17;
 */
 
 import "giveth-liquidpledging/contracts/LiquidPledging.sol";
-import "giveth-common-contracts/contracts/Escapable.sol";
+import "giveth-liquidpledging/contracts/EscapableApp.sol";
 import "minimetoken/contracts/MiniMeToken.sol";
 
+contract LPPDac is EscapableApp, TokenController {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
-contract LPPDacs is Escapable, TokenController {
     uint constant FROM_FIRST_DELEGATE = 1;
     uint constant TO_FIRST_DELEGATE = 257;
 
     LiquidPledging public liquidPledging;
+    MiniMeToken public dacToken;
+    uint64 public idDelegate;
 
-    struct Dac {
-        MiniMeToken token;
-        address owner;
-    }
-
-    mapping (uint64 => Dac) dacs;
-
-    event GenerateTokens(uint64 indexed idDelegate, address addr, uint amount);
-    event DestroyTokens(uint64 indexed idDelegate, address addr, uint amount);
+    event GenerateTokens(address indexed liquidPledging, address addr, uint amount);
+    event DestroyTokens(address indexed liquidPledging, address addr, uint amount);
 
     //== constructor
 
-    function LPPDacs(
-        LiquidPledging _liquidPledging,
-        address _escapeHatchCaller,
+    function LPPDac(address _escapeHatchDestination) EscapableApp(_escapeHatchDestination) public {}
+
+    function initialize(address _escapeHatchDestination) onlyInit public {
+        require(false); // overload the EscapableApp
+        _escapeHatchDestination;
+    }
+
+    function initialize(
+        address _liquidPledging,
+        address _token,
+        string name,
+        string url,
+        uint64 commitTime,
         address _escapeHatchDestination
-    ) Escapable(_escapeHatchCaller, _escapeHatchDestination) public
+    ) onlyInit external
     {
-        liquidPledging = _liquidPledging;
+        super.initialize(_escapeHatchDestination);
+        require(_liquidPledging != 0);
+        require(_token != 0);
+
+        liquidPledging = LiquidPledging(_liquidPledging);
+
+        idDelegate = liquidPledging.addDelegate(
+            name,
+            url,
+            commitTime,
+            ILiquidPledgingPlugin(this)
+        );
+
+        dacToken = MiniMeToken(_token);
     }
 
     //== external
@@ -59,6 +78,7 @@ contract LPPDacs is Escapable, TokenController {
         uint64 pledgeFrom,
         uint64 pledgeTo,
         uint64 context,
+        address token,
         uint amount
     ) external returns (uint maxAllowed)
     {
@@ -74,116 +94,53 @@ contract LPPDacs is Escapable, TokenController {
         uint64 pledgeFrom,
         uint64 pledgeTo,
         uint64 context,
+        address token,
         uint amount
     ) external
     {
         require(msg.sender == address(liquidPledging));
-        var (, toOwner, , toIntendedProject, , , toPledgeState ) = liquidPledging.getPledge(pledgeTo);
-        var (, fromOwner, , , , , ) = liquidPledging.getPledge(pledgeFrom);
+        var (, toOwner, , toIntendedProject, , , , toPledgeState ) = liquidPledging.getPledge(pledgeTo);
+        var (, fromOwner, , , , , , ) = liquidPledging.getPledge(pledgeFrom);
         var (toAdminType, toAddr, , , , , , ) = liquidPledging.getPledgeAdmin(toOwner);
-        Dac storage d;
-        uint64 idDelegate;
 
-        // only issue tokens when pledge is committed to a project and a dac is the first delegate
+        // only issue dacTokens when pledge is committed to a project and a dac is the first delegate
         if (context == FROM_FIRST_DELEGATE &&
                 toIntendedProject == 0 &&
-                toAdminType == LiquidPledgingBase.PledgeAdminType.Project &&
+                toAdminType == LiquidPledgingStorage.PledgeAdminType.Project &&
                 toOwner != fromOwner &&
-                toPledgeState == LiquidPledgingBase.PledgeState.Pledged)
+                toPledgeState == LiquidPledgingStorage.PledgeState.Pledged)
         {
-            (idDelegate, , ) = liquidPledging.getPledgeDelegate(pledgeFrom, 1);
-            d = dacs[idDelegate];
-
-            require(address(d.token) != 0x0);
-
             var (, fromAddr , , , , , , ) = liquidPledging.getPledgeAdmin(fromOwner);
 
-            d.token.generateTokens(fromAddr, amount);
-            GenerateTokens(idDelegate, fromAddr, amount);
+            dacToken.generateTokens(fromAddr, amount);
+            GenerateTokens(address(liquidPledging), fromAddr, amount);
         }
 
         // if a committed project is canceled and the pledge is rolling back to a
-        // dac, we need to burn the tokens that we're generated
+        // dac, we need to burn the tokens that were generated
         if ( (context == TO_FIRST_DELEGATE) &&
             liquidPledging.isProjectCanceled(fromOwner)) {
-            (idDelegate, , ) = liquidPledging.getPledgeDelegate(pledgeTo, 1);
-            d = dacs[idDelegate];
 
-            require(address(d.token) != 0x0);
-
-            if (d.token.balanceOf(toAddr) >= amount) {
-                d.token.destroyTokens(toAddr, amount);
-                DestroyTokens(fromOwner, toAddr, amount);
+            if (dacToken.balanceOf(toAddr) >= amount) {
+                dacToken.destroyTokens(toAddr, amount);
+                DestroyTokens(address(liquidPledging), toAddr, amount);
             }
+
         }
     }
 
-    //== public
-
-    function addDac(
-        string name,
-        string url,
-        uint64 commitTime,
-        string tokenName,
-        string tokenSymbol
-    ) public
-    {
-        uint64 idDelegate = liquidPledging.addDelegate(
-            name,
-            url,
-            commitTime,
-            ILiquidPledgingPlugin(this)
-        );
-
-        MiniMeTokenFactory tokenFactory = new MiniMeTokenFactory();
-        MiniMeToken token = new MiniMeToken(tokenFactory, 0x0, 0, tokenName, 18, tokenSymbol, false);
-
-        dacs[idDelegate] = Dac(token, msg.sender);
-    }
-
-    function addDac(
-        string name,
-        string url,
-        uint64 commitTime,
-        MiniMeToken token
-    ) public
-    {
-        uint64 idDelegate = liquidPledging.addDelegate(
-          name,
-          url,
-          commitTime,
-          ILiquidPledgingPlugin(this)
-        );
-
-        dacs[idDelegate] = Dac(token, msg.sender);
-    }
-
     function transfer(
-        uint64 idDelegate,
         uint64 idPledge,
         uint amount,
         uint64 idReceiver
-    ) public
+    ) external authP(ADMIN_ROLE, arr(uint(idPledge), amount, uint(idReceiver)))
     {
-        Dac storage d = dacs[idDelegate];
-        require(msg.sender == d.owner);
-
         liquidPledging.transfer(
             idDelegate,
             idPledge,
             amount,
             idReceiver
         );
-    }
-
-    function getDac(uint64 idDelegate) public view returns (
-        MiniMeToken token,
-        address owner
-    )
-    {
-        Dac storage d = dacs[idDelegate];
-        token = d.token;
-        owner = d.owner;
     }
 
     ////////////////
