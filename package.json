@@ -1,6 +1,6 @@
 {
   "name": "lpp-dac",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "LiquidPledging plugin contract for dacs to issue a custom MiniMe Token for donations.",
   "main": "index.js",
   "directories": {

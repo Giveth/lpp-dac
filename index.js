@@ -5,5 +5,3 @@ module.exports = {
   LPPDac: generateClass(contractInfo.LPPDacsABI, contractInfo.LPPDacsByteCode),
   LPPDacFactory: generateClass(contractInfo.LPPDacFactoryABI, contractInfo.LPPDacFactoryByteCode),
 };
-
-module.exports = LPPDacs;
