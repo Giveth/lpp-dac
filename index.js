@@ -2,6 +2,6 @@ const contractInfo = require('./build/LPPDacFactory.sol'); // const LPPDacsByteC
 const generateClass = require('eth-contract-class').default;
 
 module.exports = {
-  LPPDac: generateClass(contractInfo.LPPDacABI, contractInfo.LPPDacByteCode),
-  LPPDacFactory: generateClass(contractInfo.LPPDacFactoryABI, contractInfo.LPPDacFactoryByteCode),
+  LPPDac: generateClass(contractInfo.LPPDacAbi, contractInfo.LPPDacByteCode),
+  LPPDacFactory: generateClass(contractInfo.LPPDacFactoryAbi, contractInfo.LPPDacFactoryByteCode),
 };
