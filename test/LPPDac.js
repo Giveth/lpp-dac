@@ -2,15 +2,22 @@
 /* eslint-disable no-await-in-loop */
 const TestRPC = require('ganache-cli');
 const chai = require('chai');
-const contracts = require('../build/contracts');
-const { LPVault, LPFactory, LiquidPledgingState, test } = require('giveth-liquidpledging');
+const { LPPDac, LPPDacFactory } = require('../index');
+const {
+  Kernel,
+  ACL,
+  LPVault,
+  LPFactory,
+  LiquidPledgingState,
+  test,
+} = require('giveth-liquidpledging');
 const { MiniMeToken, MiniMeTokenFactory, MiniMeTokenState } = require('minimetoken');
 const Web3 = require('web3');
 const { StandardTokenTest, assertFail, LiquidPledgingMock } = test;
 
 const assert = chai.assert;
 
-describe('LPPDac test', function () {
+describe('LPPDac test', function() {
   this.timeout(0);
 
   let web3;
@@ -40,7 +47,7 @@ describe('LPPDac test', function () {
       total_accounts: 10,
     });
 
-    testrpc.listen(8545, '127.0.0.1', (err) => { });
+    testrpc.listen(8545, '127.0.0.1', err => {});
 
     web3 = new Web3('ws://localhost:8545');
     accounts = await web3.eth.getAccounts();
@@ -53,9 +60,10 @@ describe('LPPDac test', function () {
     giver2 = accounts[6];
   });
 
-  after((done) => {
+  after(done => {
     testrpc.close();
     done();
+    process.exit();
   });
 
   it('Should deploy LPPDac contract and add delegate to liquidPledging', async () => {
@@ -74,26 +82,59 @@ describe('LPPDac test', function () {
     liquidPledgingState = new LiquidPledgingState(liquidPledging);
 
     // set permissions
-    const kernel = new contracts.Kernel(web3, await liquidPledging.kernel());
-    acl = new contracts.ACL(web3, await kernel.acl());
-    await acl.createPermission(accounts[0], vault.$address, await vault.CANCEL_PAYMENT_ROLE(), accounts[0], { $extraGas: 200000 });
-    await acl.createPermission(accounts[0], vault.$address, await vault.CONFIRM_PAYMENT_ROLE(), accounts[0], { $extraGas: 200000 });
+    const kernel = new Kernel(web3, await liquidPledging.kernel());
+    acl = new ACL(web3, await kernel.acl());
+    await acl.createPermission(
+      accounts[0],
+      vault.$address,
+      await vault.CANCEL_PAYMENT_ROLE(),
+      accounts[0],
+      { $extraGas: 200000 },
+    );
+    await acl.createPermission(
+      accounts[0],
+      vault.$address,
+      await vault.CONFIRM_PAYMENT_ROLE(),
+      accounts[0],
+      { $extraGas: 200000 },
+    );
 
     giverToken = await StandardTokenTest.new(web3);
     await giverToken.mint(giver1, web3.utils.toWei('1000'));
-    await giverToken.approve(liquidPledging.$address, "0xFFFFFFFFFFFFFFFF", { from: giver1 });
+    await giverToken.approve(liquidPledging.$address, '0xFFFFFFFFFFFFFFFF', { from: giver1 });
     await giverToken.mint(giver2, web3.utils.toWei('1000'));
-    await giverToken.approve(liquidPledging.$address, "0xFFFFFFFFFFFFFFFF", { from: giver2 });
+    await giverToken.approve(liquidPledging.$address, '0xFFFFFFFFFFFFFFFF', { from: giver2 });
 
     const tokenFactory = await MiniMeTokenFactory.new(web3, { gas: 3000000 });
-    factory = await contracts.LPPDacFactory.new(web3, kernel.$address, tokenFactory.$address, accounts[0], accounts[1], { gas: 6000000 });
-    await acl.grantPermission(factory.$address, acl.$address, await acl.CREATE_PERMISSIONS_ROLE(), { $extraGas: 200000 });
-    await acl.grantPermission(factory.$address, liquidPledging.$address, await liquidPledging.PLUGIN_MANAGER_ROLE(), { $extraGas: 200000 });
+    factory = await LPPDacFactory.new(
+      web3,
+      kernel.$address,
+      tokenFactory.$address,
+      accounts[0],
+      accounts[1],
+      { gas: 6000000 },
+    );
+    await acl.grantPermission(factory.$address, acl.$address, await acl.CREATE_PERMISSIONS_ROLE(), {
+      $extraGas: 200000,
+    });
+    await acl.grantPermission(
+      factory.$address,
+      liquidPledging.$address,
+      await liquidPledging.PLUGIN_MANAGER_ROLE(),
+      { $extraGas: 200000 },
+    );
 
-    const dacApp = await contracts.LPPDac.new(web3, accounts[0]);
-    await kernel.setApp(await kernel.APP_BASES_NAMESPACE(), await factory.DAC_APP_ID(), dacApp.$address, { $extraGas: 200000 });
+    const dacApp = await LPPDac.new(web3, accounts[0]);
+    await kernel.setApp(
+      await kernel.APP_BASES_NAMESPACE(),
+      await factory.DAC_APP_ID(),
+      dacApp.$address,
+      { $extraGas: 200000 },
+    );
 
-    await factory.newDac('DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', accounts[0], accounts[1], { from: dacOwner1 }); // pledgeAdmin #1
+    await factory.newDac('DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', accounts[0], accounts[1], {
+      from: dacOwner1,
+    }); // pledgeAdmin #1
 
     // await lppdacs.addDac('DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', { from: dacOwner1, gas: 6000000 });
 
@@ -101,7 +142,7 @@ describe('LPPDac test', function () {
     assert.equal(lpState.admins.length, 2);
     const lpManager = lpState.admins[1];
 
-    dac = new contracts.LPPDac(web3, lpManager.plugin);
+    dac = new LPPDac(web3, lpManager.plugin);
     // assert.equal(dac.owner, dacOwner1);
 
     minime = new MiniMeToken(web3, await dac.dacToken());
@@ -121,7 +162,7 @@ describe('LPPDac test', function () {
     assert.equal(await minime.symbol(), 'DAC1');
   });
 
-  it('Should not generate tokens when added as pledge delegate', async function () {
+  it('Should not generate tokens when added as pledge delegate', async function() {
     await liquidPledging.addGiver('Giver1', 'URL', 0, 0x0, { from: giver1 }); // pledgeAdmin #2
     await liquidPledging.donate(2, 1, giverToken.$address, 1000, { from: giver1 });
 
@@ -136,9 +177,12 @@ describe('LPPDac test', function () {
     assert.equal(totalTokenSupply, 0);
   });
 
-  it('Should send tokens to giver when committing to project', async function () {
+  it('Should send tokens to giver when committing to project', async function() {
     // create project
-    await liquidPledging.addProject('Project1', 'URL', project1, 0, 0, 0x0, { from: project1, $extraGas: 100000 }); // pledgeAdmin #3
+    await liquidPledging.addProject('Project1', 'URL', project1, 0, 0, 0x0, {
+      from: project1,
+      $extraGas: 100000,
+    }); // pledgeAdmin #3
     // delegate to project1
     await dac.transfer(2, 1000, 3, { from: dacOwner1, $extraGas: 100000 });
 
@@ -160,9 +204,12 @@ describe('LPPDac test', function () {
     assert.equal(totalTokenSupply, 1000);
   });
 
-  it('Should not send tokens to giver when revoking pledge from delegate', async function () {
+  it('Should not send tokens to giver when revoking pledge from delegate', async function() {
     // donate to delegate1
-    await liquidPledging.donate(2, 1, giverToken.$address, 1000, { from: giver1, $extraGas: 100000 });
+    await liquidPledging.donate(2, 1, giverToken.$address, 1000, {
+      from: giver1,
+      $extraGas: 100000,
+    });
     await liquidPledging.transfer(2, 2, 1000, 2, { from: giver1, $extraGas: 100000 });
 
     const st = await liquidPledgingState.getState();
@@ -175,11 +222,13 @@ describe('LPPDac test', function () {
     assert.equal(totalTokenSupply, 1000);
   });
 
-  it('Should only generate tokens for first delegate in chain.', async function () {
-    await factory.newDac('DAC 2', 'URL2', 0, 'DAC 2 Token', 'DAC2', accounts[0], accounts[0], { from: dacOwner2 }); // pledgeAdmin #4
+  it('Should only generate tokens for first delegate in chain.', async function() {
+    await factory.newDac('DAC 2', 'URL2', 0, 'DAC 2 Token', 'DAC2', accounts[0], accounts[0], {
+      from: dacOwner2,
+    }); // pledgeAdmin #4
 
     const admin = await liquidPledging.getPledgeAdmin(4);
-    dac2 = new contracts.LPPDac(web3, admin.plugin);
+    dac2 = new LPPDac(web3, admin.plugin);
     minime2 = new MiniMeToken(web3, await dac2.dacToken());
 
     // add delegate 1
@@ -210,10 +259,9 @@ describe('LPPDac test', function () {
     const totalToken2Supply = await minime2.totalSupply();
     assert.equal(giverToken2Bal, 0);
     assert.equal(totalToken2Supply, 0);
-
   });
 
-  it('Should burn tokens if project is canceled', async function () {
+  it('Should burn tokens if project is canceled', async function() {
     await liquidPledging.cancelProject(3, { from: project1, $extraGas: 100000 });
     // set the time
     const now = Math.floor(new Date().getTime() / 1000);
@@ -227,12 +275,18 @@ describe('LPPDac test', function () {
     assert.equal(totalTokenSupply, 1000);
   });
 
-  it('Should not burn tokens for paid pledges if project is canceled', async function () {
+  it('Should not burn tokens for paid pledges if project is canceled', async function() {
     // create project
-    await liquidPledging.addProject('Project2', 'URL', project2, 0, 0, 0x0, { from: project2, $extraGas: 100000 }); // pledgeAdmin #5
+    await liquidPledging.addProject('Project2', 'URL', project2, 0, 0, 0x0, {
+      from: project2,
+      $extraGas: 100000,
+    }); // pledgeAdmin #5
     await liquidPledging.addGiver('Giver2', '', 0, 0x0, { from: giver2, $extraGas: 100000 }); // pledgeAdmin #6
     // donate to delegate1
-    await liquidPledging.donate(6, 1, giverToken.$address, 1000, { from: giver2, $extraGas: 100000 });
+    await liquidPledging.donate(6, 1, giverToken.$address, 1000, {
+      from: giver2,
+      $extraGas: 100000,
+    });
     // delegate to project2
     await dac.transfer(9, 1000, 5, { from: dacOwner1, $extraGas: 100000 });
 
@@ -257,7 +311,7 @@ describe('LPPDac test', function () {
     assert.equal(totalTokenSupply, 2000);
   });
 
-  it('Should update delegate', async function () {
+  it('Should update delegate', async function() {
     await dac.update('new name', 'new url', 1010, { from: dacOwner1, $extraGas: 100000 });
 
     const d = await liquidPledging.getPledgeAdmin(1);
@@ -267,30 +321,28 @@ describe('LPPDac test', function () {
     assert.equal(d.commitTime, 1010);
   });
 
-  it('Should restrict admin to only specified params', async function () {
+  it('Should restrict admin to only specified params', async function() {
     const params = [
       // id: 1 (arg 1) op: LTE(6) value: amount
-      '0x0106000000000000000000000000000000000000000000000000000000000010'
+      '0x0106000000000000000000000000000000000000000000000000000000000010',
     ];
 
     // grant restricted Admin_Role to dacOwner2
-    await acl.grantPermissionP(dacOwner2, dac.$address, await dac.ADMIN_ROLE(), params, { from: dacOwner1, $extraGas: 100000 });
+    await acl.grantPermissionP(dacOwner2, dac.$address, await dac.ADMIN_ROLE(), params, {
+      from: dacOwner1,
+      $extraGas: 100000,
+    });
 
     // should only be able to transfer <= 10 tokens
-    assertFail(
-      dac.transfer(2, 100, 4, { from: dacOwner2, gas: 6700000 })
-    );
+    assertFail(dac.transfer(2, 100, 4, { from: dacOwner2, gas: 6700000 }));
 
-    await dac.transfer(2, 10, 4, { from: dacOwner2, $extraGas: 100000 })
+    await dac.transfer(2, 10, 4, { from: dacOwner2, $extraGas: 100000 });
 
     const st = await liquidPledgingState.getState();
     assert.equal(990, st.pledges[2].amount);
     assert.equal(10, st.pledges[5].amount);
 
     // dacOwner2 should not be able to update dac
-    assertFail(
-      dac.update('I can update', 'pwned', 0, { from: dacOwner2, gas: 6700000 })
-    );
-  })
-
+    assertFail(dac.update('I can update', 'pwned', 0, { from: dacOwner2, gas: 6700000 }));
+  });
 });
