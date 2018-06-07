@@ -143,6 +143,29 @@ contract LPPDac is EscapableApp, TokenController {
         );
     }
 
+    uint constant D64 = 0x10000000000000000;
+
+    function mTransfer(
+        uint[] pledgesAmounts,
+        uint64 idReceiver
+    ) external
+    {
+        // TODO is there a more efficient way to do this? we can't pass array into canPerform function
+        // this has ~ 15k gas overhead / pledge vs a single authP
+        for (uint i = 0; i < pledgesAmounts.length; i++ ) {
+            uint idPledge = uint64(pledgesAmounts[i] & (D64-1));
+            uint amount = pledgesAmounts[i] / D64;
+
+            require(canPerform(msg.sender, ADMIN_ROLE, arr(idPledge, amount, uint(idReceiver))));
+        }
+
+        liquidPledging.mTransfer(
+            idDelegate,
+            pledgesAmounts,
+            idReceiver
+        );
+    }
+
     function update(
         string newName,
         string newUrl,

@@ -35,6 +35,7 @@ describe('LPPDac test', function() {
   let giver2;
   let project1;
   let project2;
+  let project3;
   let dacOwner1;
   let dacOwner2;
   let testrpc;
@@ -58,12 +59,13 @@ describe('LPPDac test', function() {
     dacOwner2 = accounts[4];
     project2 = accounts[5];
     giver2 = accounts[6];
+    project3 = accounts[7];
   });
 
   after(done => {
     testrpc.close();
     done();
-    process.exit();
+    setTimeout(process.exit, 2000);
   });
 
   it('Should deploy LPPDac contract and add delegate to liquidPledging', async () => {
@@ -334,7 +336,7 @@ describe('LPPDac test', function() {
     });
 
     // should only be able to transfer <= 10 tokens
-    assertFail(dac.transfer(2, 100, 4, { from: dacOwner2, gas: 6700000 }));
+    await assertFail(dac.transfer(2, 100, 4, { from: dacOwner2, gas: 6700000 }));
 
     await dac.transfer(2, 10, 4, { from: dacOwner2, $extraGas: 100000 });
 
@@ -343,6 +345,40 @@ describe('LPPDac test', function() {
     assert.equal(10, st.pledges[5].amount);
 
     // dacOwner2 should not be able to update dac
-    assertFail(dac.update('I can update', 'pwned', 0, { from: dacOwner2, gas: 6700000 }));
+    await assertFail(dac.update('I can update', 'pwned', 0, { from: dacOwner2, gas: 6700000 }));
+  });
+
+  it('Should transfer multiple tokens at once', async function() {
+    await liquidPledging.addProject('Project3', 'URL', project1, 0, 0, 0x0, {
+      from: project3,
+      $extraGas: 100000,
+    }); // pledgeAdmin #7
+
+    const pledges = [{ amount: 100, id: 2 }, {amount: 10, id: 5}, { amount: 10, id: 2 }, { amount: 20, id: 2 }];
+
+    // .substring is to remove the 0x prefix on the toHex result
+    const encodedPledges = pledges.map(p => {
+      return (
+        '0x' +
+        web3.utils.padLeft(web3.utils.toHex(p.amount).substring(2), 48) +
+        web3.utils.padLeft(web3.utils.toHex(p.id).substring(2), 16)
+      );
+    });
+
+    // dacOwner2 can only transfer < 10 for a given pledge
+    await assertFail(dac.mTransfer(encodedPledges, 7, { from: dacOwner2 , gas: 6700000 }));
+
+    await dac.mTransfer(encodedPledges, 7, { from: dacOwner1, $extraGas: 400000 });
+
+    // 1 pledge = 474831 474589
+    // 2 pledges = 945742 925601 = 20141 - 10k each
+    // 3 pledges = 1212358 - 1172318 = 40k - 13k each
+    // 4 pledges = 1478979 - 1419039 = 60k - 15k each
+
+    const st = await liquidPledgingState.getState();
+    const p = st.pledges[13];
+    assert.equal(p.amount, 140);
+    assert.equal(p.intendedProject, 7);
+    assert.equal(p.delegates[0].id, 1);
   });
 });

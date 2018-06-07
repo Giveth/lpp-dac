@@ -1,6 +1,6 @@
 {
   "name": "lpp-dac",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description":
     "LiquidPledging plugin contract for dacs to issue a custom MiniMe Token for donations.",
   "main": "index.js",
@@ -36,7 +36,7 @@
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.0",
     "eslint": "^4.3.0",
-    "ganache-cli": "^7.0.0-beta.0",
+    "ganache-cli": "^6.0.1",
     "lerna": "^2.2.0",
     "solcpiler": "https://github.com/perissology/solcpiler.git#6393e66",
     "eth-contract-class": "0.0.8",
