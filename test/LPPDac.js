@@ -348,7 +348,7 @@ describe('LPPDac test', function() {
     await assertFail(dac.update('I can update', 'pwned', 0, { from: dacOwner2, gas: 6700000 }));
   });
 
-  it('Should transfer multiple tokens at once', async function() {
+  it('Should transfer multiple pledges at once', async function() {
     await liquidPledging.addProject('Project3', 'URL', project1, 0, 0, 0x0, {
       from: project3,
       $extraGas: 100000,
@@ -369,11 +369,6 @@ describe('LPPDac test', function() {
     await assertFail(dac.mTransfer(encodedPledges, 7, { from: dacOwner2 , gas: 6700000 }));
 
     await dac.mTransfer(encodedPledges, 7, { from: dacOwner1, $extraGas: 400000 });
-
-    // 1 pledge = 474831 474589
-    // 2 pledges = 945742 925601 = 20141 - 10k each
-    // 3 pledges = 1212358 - 1172318 = 40k - 13k each
-    // 4 pledges = 1478979 - 1419039 = 60k - 15k each
 
     const st = await liquidPledgingState.getState();
     const p = st.pledges[13];
