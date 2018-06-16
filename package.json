@@ -1,6 +1,6 @@
 {
   "name": "lpp-dac",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0-beta.1",
   "description":
     "LiquidPledging plugin contract for dacs to issue a custom MiniMe Token for donations.",
   "main": "index.js",
@@ -27,7 +27,7 @@
   "dependencies": {
     "@aragon/os": "3.1.9",
     "chai": "^4.1.2",
-    "giveth-liquidpledging": "1.0.0-beta.0",
+    "giveth-liquidpledging": "1.0.0-beta.2",
     "minimetoken": "^0.2.0"
   },
   "devDependencies": {
