@@ -7,10 +7,9 @@ import "@aragon/os/contracts/kernel/Kernel.sol";
 import "@aragon/os/contracts/acl/ACL.sol";
 import "giveth-liquidpledging/contracts/LiquidPledging.sol";
 import "giveth-liquidpledging/contracts/LPConstants.sol";
-import "giveth-common-contracts/contracts/Escapable.sol";
 
 
-contract LPPDacFactory is LPConstants, Escapable, AppProxyFactory {
+contract LPPDacFactory is LPConstants, VaultRecoverable, AppProxyFactory {
     Kernel public kernel;
     MiniMeTokenFactory public tokenFactory;
 
@@ -20,8 +19,7 @@ contract LPPDacFactory is LPConstants, Escapable, AppProxyFactory {
 
     event DeployDac(address dac);
 
-    function LPPDacFactory(address _kernel, address _tokenFactory, address _escapeHatchCaller, address _escapeHatchDestination)
-        Escapable(_escapeHatchCaller, _escapeHatchDestination) public
+    function LPPDacFactory(address _kernel, address _tokenFactory) public 
     {
         // note: this contract will need CREATE_PERMISSIONS_ROLE on the ACL
         // and the PLUGIN_MANAGER_ROLE on liquidPledging,
@@ -38,23 +36,22 @@ contract LPPDacFactory is LPConstants, Escapable, AppProxyFactory {
         string url,
         uint64 commitTime,
         string tokenName,
-        string tokenSymbol,
-        address escapeHatchCaller,
-        address escapeHatchDestination
+        string tokenSymbol
     ) public
     { 
         // TODO: could make MiniMeToken an AragonApp to save gas by deploying a proxy
-        address token = new MiniMeToken(tokenFactory, 0x0, 0, tokenName, 18, tokenSymbol, false);
-        newDac(name, url, commitTime, token, escapeHatchCaller, escapeHatchDestination);
+        MiniMeToken token = new MiniMeToken(tokenFactory, 0x0, 0, tokenName, 18, tokenSymbol, false);
+        newDac(name, url, commitTime, token);
     }
 
+    /**
+    * @param token The token this dac will mint. This contract must be the TokenController
+    */
     function newDac(
         string name,
         string url,
         uint64 commitTime,
-        address _token,
-        address escapeHatchCaller,
-        address escapeHatchDestination
+        MiniMeToken token
     ) public
     {
         address dacBase = kernel.getApp(DAC_APP);
@@ -66,19 +63,19 @@ contract LPPDacFactory is LPConstants, Escapable, AppProxyFactory {
 
         LiquidPledging(liquidPledging).addValidPluginInstance(address(dac));
 
-        dac.initialize(liquidPledging, _token, name, url, commitTime, escapeHatchDestination);
-        MiniMeToken(_token).changeController(address(dac));
+        dac.initialize(liquidPledging, token, name, url, commitTime);
+        token.changeController(address(dac));
 
         ACL acl = ACL(kernel.acl());
-
-        bytes32 hatchCallerRole = dac.ESCAPE_HATCH_CALLER_ROLE();
         bytes32 adminRole = dac.ADMIN_ROLE();
 
-        // this permission is managed by the escapeHatchCaller
-        acl.createPermission(escapeHatchCaller, address(dac), hatchCallerRole, escapeHatchCaller);
         // this permission is managed by msg.sender
         acl.createPermission(msg.sender, address(dac), adminRole, msg.sender);
 
         DeployDac(address(dac));
+    }
+
+    function getRecoveryVault() public view returns (address) {
+        return kernel.getRecoveryVault();
     }
 }

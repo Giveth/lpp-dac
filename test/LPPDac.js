@@ -13,7 +13,7 @@ const {
 } = require('giveth-liquidpledging');
 const { MiniMeToken, MiniMeTokenFactory, MiniMeTokenState } = require('minimetoken');
 const Web3 = require('web3');
-const { StandardTokenTest, assertFail, LiquidPledgingMock } = test;
+const { StandardTokenTest, assertFail, LiquidPledgingMock, deployLP } = test;
 
 const assert = chai.assert;
 
@@ -25,7 +25,6 @@ describe('LPPDac test', function() {
   let liquidPledging;
   let liquidPledgingState;
   let vault;
-  let lppdacs;
   let dac;
   let dac2;
   let minime;
@@ -40,6 +39,7 @@ describe('LPPDac test', function() {
   let dacOwner2;
   let testrpc;
   let acl;
+  let kernel;
 
   before(async () => {
     testrpc = TestRPC.server({
@@ -53,38 +53,22 @@ describe('LPPDac test', function() {
     web3 = new Web3('ws://localhost:8545');
     accounts = await web3.eth.getAccounts();
 
-    giver1 = accounts[1];
     project1 = accounts[2];
     dacOwner1 = accounts[3];
     dacOwner2 = accounts[4];
     project2 = accounts[5];
     giver2 = accounts[6];
     project3 = accounts[7];
-  });
 
-  after(done => {
-    testrpc.close();
-    done();
-    setTimeout(process.exit, 2000);
-  });
-
-  it('Should deploy LPPDac contract and add delegate to liquidPledging', async () => {
-    const baseVault = await LPVault.new(web3, accounts[0]);
-    const baseLP = await LiquidPledgingMock.new(web3, accounts[0]);
-    const lpFactory = await LPFactory.new(web3, baseVault.$address, baseLP.$address);
-
-    const r = await lpFactory.newLP(accounts[0], accounts[1], { $extraGas: 200000 });
-
-    const vaultAddress = r.events.DeployVault.returnValues.vault;
-    vault = new LPVault(web3, vaultAddress);
-
-    const lpAddress = r.events.DeployLiquidPledging.returnValues.liquidPledging;
-    liquidPledging = new LiquidPledgingMock(web3, lpAddress);
-
-    liquidPledgingState = new LiquidPledgingState(liquidPledging);
+    const deployment = await deployLP(web3);
+    giver1 = deployment.giver1;
+    vault = deployment.vault;
+    liquidPledging = deployment.liquidPledging;
+    liquidPledgingState = deployment.liquidPledgingState;
+    giverToken = deployment.token;
 
     // set permissions
-    const kernel = new Kernel(web3, await liquidPledging.kernel());
+    kernel = new Kernel(web3, await liquidPledging.kernel());
     acl = new ACL(web3, await kernel.acl());
     await acl.createPermission(
       accounts[0],
@@ -101,21 +85,21 @@ describe('LPPDac test', function() {
       { $extraGas: 200000 },
     );
 
-    giverToken = await StandardTokenTest.new(web3);
-    await giverToken.mint(giver1, web3.utils.toWei('1000'));
-    await giverToken.approve(liquidPledging.$address, '0xFFFFFFFFFFFFFFFF', { from: giver1 });
     await giverToken.mint(giver2, web3.utils.toWei('1000'));
     await giverToken.approve(liquidPledging.$address, '0xFFFFFFFFFFFFFFFF', { from: giver2 });
+  });
 
+  after(done => {
+    testrpc.close();
+    done();
+    setTimeout(process.exit, 2000);
+  });
+
+  it('Should deploy LPPDac contract and add delegate to liquidPledging', async () => {
     const tokenFactory = await MiniMeTokenFactory.new(web3, { gas: 3000000 });
-    factory = await LPPDacFactory.new(
-      web3,
-      kernel.$address,
-      tokenFactory.$address,
-      accounts[0],
-      accounts[1],
-      { gas: 6000000 },
-    );
+    factory = await LPPDacFactory.new(web3, kernel.$address, tokenFactory.$address, {
+      gas: 6000000,
+    });
     await acl.grantPermission(factory.$address, acl.$address, await acl.CREATE_PERMISSIONS_ROLE(), {
       $extraGas: 200000,
     });
@@ -126,7 +110,7 @@ describe('LPPDac test', function() {
       { $extraGas: 200000 },
     );
 
-    const dacApp = await LPPDac.new(web3, accounts[0]);
+    const dacApp = await LPPDac.new(web3);
     await kernel.setApp(
       await kernel.APP_BASES_NAMESPACE(),
       await factory.DAC_APP_ID(),
@@ -134,18 +118,16 @@ describe('LPPDac test', function() {
       { $extraGas: 200000 },
     );
 
-    await factory.newDac('DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', accounts[0], accounts[1], {
+    await factory.newDac('DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', {
       from: dacOwner1,
     }); // pledgeAdmin #1
-
-    // await lppdacs.addDac('DAC 1', 'URL1', 0, 'DAC 1 Token', 'DAC1', { from: dacOwner1, gas: 6000000 });
 
     const lpState = await liquidPledgingState.getState();
     assert.equal(lpState.admins.length, 2);
     const lpManager = lpState.admins[1];
 
     dac = new LPPDac(web3, lpManager.plugin);
-    // assert.equal(dac.owner, dacOwner1);
+    assert.isAbove(Number(await dac.getInitializationBlock()), 0);
 
     minime = new MiniMeToken(web3, await dac.dacToken());
     minimeTokenState = new MiniMeTokenState(minime);
@@ -225,7 +207,7 @@ describe('LPPDac test', function() {
   });
 
   it('Should only generate tokens for first delegate in chain.', async function() {
-    await factory.newDac('DAC 2', 'URL2', 0, 'DAC 2 Token', 'DAC2', accounts[0], accounts[0], {
+    await factory.newDac('DAC 2', 'URL2', 0, 'DAC 2 Token', 'DAC2', {
       from: dacOwner2,
     }); // pledgeAdmin #4
 
@@ -354,7 +336,12 @@ describe('LPPDac test', function() {
       $extraGas: 100000,
     }); // pledgeAdmin #7
 
-    const pledges = [{ amount: 100, id: 2 }, {amount: 10, id: 5}, { amount: 10, id: 2 }, { amount: 20, id: 2 }];
+    const pledges = [
+      { amount: 100, id: 2 },
+      { amount: 10, id: 5 },
+      { amount: 10, id: 2 },
+      { amount: 20, id: 2 },
+    ];
 
     // .substring is to remove the 0x prefix on the toHex result
     const encodedPledges = pledges.map(p => {
@@ -366,7 +353,7 @@ describe('LPPDac test', function() {
     });
 
     // dacOwner2 can only transfer < 10 for a given pledge
-    await assertFail(dac.mTransfer(encodedPledges, 7, { from: dacOwner2 , gas: 6700000 }));
+    await assertFail(dac.mTransfer(encodedPledges, 7, { from: dacOwner2, gas: 6700000 }));
 
     await dac.mTransfer(encodedPledges, 7, { from: dacOwner1, $extraGas: 400000 });
 

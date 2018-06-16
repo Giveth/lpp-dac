@@ -17,11 +17,11 @@ pragma solidity ^0.4.18;
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import "@aragon/os/contracts/apps/AragonApp.sol";
 import "giveth-liquidpledging/contracts/LiquidPledging.sol";
-import "giveth-liquidpledging/contracts/EscapableApp.sol";
 import "minimetoken/contracts/MiniMeToken.sol";
 
-contract LPPDac is EscapableApp, TokenController {
+contract LPPDac is AragonApp, TokenController {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     uint constant FROM_FIRST_DELEGATE = 1;
@@ -36,25 +36,17 @@ contract LPPDac is EscapableApp, TokenController {
 
     //== constructor
 
-    function LPPDac(address _escapeHatchDestination) EscapableApp(_escapeHatchDestination) public {}
-
-    function initialize(address _escapeHatchDestination) onlyInit public {
-        require(false); // overload the EscapableApp
-        _escapeHatchDestination;
-    }
-
     function initialize(
         address _liquidPledging,
         address _token,
         string name,
         string url,
-        uint64 commitTime,
-        address _escapeHatchDestination
+        uint64 commitTime
     ) onlyInit external
     {
-        super.initialize(_escapeHatchDestination);
         require(_liquidPledging != 0);
         require(_token != 0);
+        initialized();
 
         liquidPledging = LiquidPledging(_liquidPledging);
 
