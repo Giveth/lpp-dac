@@ -1,19 +1,12 @@
 /* eslint-env mocha */
 /* eslint-disable no-await-in-loop */
-const TestRPC = require('ganache-cli');
+const Ganache = require('ganache-cli');
 const chai = require('chai');
 const { LPPDac, LPPDacFactory } = require('../index');
-const {
-  Kernel,
-  ACL,
-  LPVault,
-  LPFactory,
-  LiquidPledgingState,
-  test,
-} = require('giveth-liquidpledging');
+const { Kernel, ACL, test } = require('giveth-liquidpledging');
 const { MiniMeToken, MiniMeTokenFactory, MiniMeTokenState } = require('minimetoken');
 const Web3 = require('web3');
-const { StandardTokenTest, assertFail, LiquidPledgingMock, deployLP } = test;
+const { assertFail, deployLP } = test;
 
 const assert = chai.assert;
 
@@ -37,18 +30,18 @@ describe('LPPDac test', function() {
   let project3;
   let dacOwner1;
   let dacOwner2;
-  let testrpc;
+  let ganache;
   let acl;
   let kernel;
 
   before(async () => {
-    testrpc = TestRPC.server({
+    ganache = Ganache.server({
       ws: true,
       gasLimit: 9700000,
       total_accounts: 10,
     });
 
-    testrpc.listen(8545, '127.0.0.1', err => {});
+    ganache.listen(8545, '127.0.0.1', err => {});
 
     web3 = new Web3('ws://localhost:8545');
     accounts = await web3.eth.getAccounts();
@@ -90,7 +83,7 @@ describe('LPPDac test', function() {
   });
 
   after(done => {
-    testrpc.close();
+    ganache.close();
     done();
     setTimeout(process.exit, 2000);
   });
